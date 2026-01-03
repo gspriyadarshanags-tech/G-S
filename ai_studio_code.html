@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart AI Assistant</title>
+    <style>
+        /* --- CSS DESIGN --- */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #eef2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            user-select: none;
+        }
+
+        .chat-container {
+            width: 95%;
+            max-width: 500px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 5px 25px rgba(0,0,0,0.15);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 90vh;
+            border: 1px solid #ddd;
+            position: relative;
+        }
+
+        /* Header Area */
+        .header {
+            background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+            color: white;
+            padding: 12px 10px; /* Thoda space kam kiya taaki buttons fit hon */
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 10;
+        }
+
+        .header-title {
+            font-size: 1rem; /* Font thoda chhota kiya taaki naam na kate */
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 5px; /* Buttons ke beech gap */
+        }
+
+        .icon-btn {
+            background: rgba(255, 255, 255, 0.25);
+            border: none;
+            color: white;
+            padding: 8px 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s;
+        }
+
+        .icon-btn:hover { background: rgba(255, 255, 255, 0.5); }
+        .icon-btn.active { background-color: #ff4757; } 
+        .icon-btn.music-on { background-color: #00b894; }
+
+        /* Chat Box */
+        .chat-box {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+            background-color: #f8f9fa;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .message {
+            max-width: 85%;
+            padding: 12px 16px;
+            border-radius: 15px;
+            line-height: 1.5;
+            font-size: 0.95rem;
+            word-wrap: break-word;
+            position: relative;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+
+        .user-msg { align-self: flex-end; background-color: #2575fc; color: white; border-bottom-right-radius: 2px; }
+        .ai-msg { align-self: flex-start; background-color: #ffffff; color: #333; border-bottom-left-radius: 2px; border: 1px solid #eee; }
+
+        .speak-btn {
+            display: inline-block; margin-left: 8px; cursor: pointer;
+            font-size: 1.2rem; vertical-align: middle; filter: grayscale(100%); transition: 0.2s;
+        }
+        .speak-btn:hover { filter: grayscale(0%); transform: scale(1.1); }
+
+        .message.selected-to-delete { opacity: 0.7; background-color: #ffe6e6 !important; border: 1px solid #ff4757; color: #333 !important; }
+
+        .loading { font-style: italic; color: #888; font-size: 0.8rem; margin: 10px 0 0 20px; display: none; }
+
+        .input-area { padding: 15px; background-color: white; border-top: 1px solid #eee; display: flex; gap: 10px; align-items: center; }
+        textarea { flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 25px; resize: none; height: 24px; font-family: inherit; outline: none; background: #f1f2f6; }
+        button.send-btn { padding: 12px 24px; background-color: #2575fc; color: white; border: none; border-radius: 25px; cursor: pointer; font-weight: bold; }
+
+    </style>
+</head>
+<body>
+
+    <audio id="audioPlayer" loop></audio>
+
+    <div class="chat-container">
+        <div class="header">
+            <div class="header-title">AI Assistant 🤖</div>
+            <div class="header-controls">
+                
+                <!-- NEW LINK BUTTON (🌐) -->
+                <button class="icon-btn" onclick="openLink()" title="Go to Website">🌐</button>
+                
+                <!-- Other Buttons -->
+                <button class="icon-btn active" onclick="stopSpeaking()" title="Mute">🔇</button>
+                <button class="icon-btn" id="musicBtn" onclick="handleMusic()" title="Music">🎵</button>
+                <button class="icon-btn" id="deleteBtn" onclick="toggleDeleteMode()" title="Delete">🗑️</button>
+            </div>
+        </div>
+        
+        <div class="chat-box" id="chatBox">
+            <div class="message ai-msg" onclick="handleMsgClick(this)">
+                <b>Namaste! Hello!</b><br>
+                1. 🌐 = Link open karein.<br>
+                2. 🎵 = Music chalayein.<br>
+                3. Main bol kar bhi samjhaunga.
+                <span class="speak-btn" onclick="event.stopPropagation(); speakText('Namaste. Globe button se aap link open kar sakte hain.')">🔊</span>
+            </div>
+        </div>
+        
+        <div class="loading" id="loadingIndicator">Typing...</div>
+        
+        <div class="input-area">
+            <textarea id="userInput" placeholder="Ask anything..." oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'"></textarea>
+            <button onclick="sendMessage()" class="send-btn" id="sendBtn">Send</button>
+        </div>
+    </div>
+
+    <script>
+        // --- VARIABLES ---
+        const chatBox = document.getElementById('chatBox');
+        const userInput = document.getElementById('userInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const audioPlayer = document.getElementById('audioPlayer');
+        const deleteBtn = document.getElementById('deleteBtn');
+        const musicBtn = document.getElementById('musicBtn');
+        let synthesis = window.speechSynthesis;
+        let isDeleteMode = false;
+        let isMusicPlaying = false;
+
+        // --- 1. NEW LINK FUNCTION (🌐) ---
+        function openLink() {
+            let link = prompt("Website Link enter karein (e.g. google.com):");
+            if (link) {
+                // Agar user ne 'https://' nahi lagaya, to hum laga denge
+                if (!link.startsWith('http://') && !link.startsWith('https://')) {
+                    link = 'https://' + link;
+                }
+                // Us link par chale jao
+                window.location.href = link;
+            }
+        }
+
+        // --- 2. SPEAKING FUNCTION ---
+        function speakText(text) {
+            synthesis.cancel();
+            const cleanText = text.replace(/<[^>]*>/g, '').replace(/[*#]/g, '');
+            const utterance = new SpeechSynthesisUtterance(cleanText);
+            
+            if (/[ऀ-ॿ]/.test(cleanText)) utterance.lang = 'hi-IN';
+            else utterance.lang = 'en-US';
+
+            synthesis.speak(utterance);
+        }
+        function stopSpeaking() { synthesis.cancel(); }
+
+        // --- 3. MUSIC PLAYER ---
+        function handleMusic() {
+            if (isMusicPlaying) {
+                audioPlayer.pause();
+                isMusicPlaying = false;
+                musicBtn.classList.remove('music-on');
+            } else {
+                let link = prompt("Paste MP3 Link:", "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3");
+                if (link && link.trim() !== "") {
+                    audioPlayer.src = link;
+                    audioPlayer.play().then(() => {
+                        isMusicPlaying = true;
+                        musicBtn.classList.add('music-on');
+                    }).catch(e => alert("Error: Link invalid."));
+                }
+            }
+        }
+
+        // --- 4. DELETE FUNCTION ---
+        function toggleDeleteMode() {
+            isDeleteMode = !isDeleteMode;
+            if (isDeleteMode) {
+                deleteBtn.classList.add('active');
+                alert("Message select karein aur firse Dustbin dabayein.");
+            } else {
+                const selected = document.querySelectorAll('.selected-to-delete');
+                if (selected.length > 0 && confirm("Delete messages?")) {
+                    selected.forEach(msg => msg.remove());
+                } else {
+                    selected.forEach(msg => msg.classList.remove('selected-to-delete'));
+                }
+                deleteBtn.classList.remove('active');
+            }
+        }
+        function handleMsgClick(element) {
+            if (isDeleteMode) element.classList.toggle('selected-to-delete');
+        }
+
+        // --- 5. AI LOGIC ---
+        async function sendMessage() {
+            const question = userInput.value.trim();
+            if (!question) return;
+
+            addMessage(question, 'user-msg', false);
+            userInput.value = '';
+            userInput.style.height = '24px';
+            setLoading(true);
+
+            try {
+                const systemPrompt = "You are a teacher. Detect language. Reply in SAME language. Explain clearly.";
+                const finalUrl = `https://text.pollinations.ai/${encodeURIComponent(systemPrompt + "\n\nUser Question: " + question)}`;
+
+                const response = await fetch(finalUrl);
+                const aiReply = await response.text();
+
+                addMessage(aiReply, 'ai-msg', true);
+                speakText(aiReply);
+
+            } catch (error) {
+                addMessage("Error: Net check karein.", 'ai-msg', false);
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        function addMessage(text, className, isAi) {
+            const div = document.createElement('div');
+            div.className = `message ${className}`;
+            let formattedText = text.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
+            
+            if (isAi) {
+                const safeText = text.replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, ' ');
+                formattedText += `<br><span class="speak-btn" onclick="event.stopPropagation(); speakText('${safeText}')">🔊</span>`;
+            }
+
+            div.innerHTML = formattedText;
+            div.onclick = function() { handleMsgClick(this); };
+            chatBox.appendChild(div);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function setLoading(isLoading) {
+            sendBtn.disabled = isLoading;
+            loadingIndicator.style.display = isLoading ? 'block' : 'none';
+        }
+    </script>
+</body>
+</html>
